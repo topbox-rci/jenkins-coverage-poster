@@ -1,6 +1,33 @@
 #!/usr/bin/env groovy
 package com.spotify.jenkinsfile
 
+def Double getCoverageFromCobertura(String xmlPath) {
+  if(!fileExists(xmlPath)) {
+    echo "[WARNING] Cobertura coverage report not found at ${xmlPath}"
+    return null
+  }
+
+  // can't use String.replaceAll() with groups: https://issues.jenkins-ci.org/browse/JENKINS-26481
+  withEnv(["XML_PATH=${xmlPath}"]) {
+    final coverage = sh(returnStdout: true, script: '''#!/bin/bash -xe
+      cat ${XML_PATH} | python -c 'import sys
+import xml.etree.ElementTree as ET
+
+tree = ET.parse(sys.stdin)
+root = tree.getroot()
+coverage = float(root.attrib['line-rate'])
+print "%.2f" % (coverage * 100)'
+    ''')
+
+    if(coverage == "") {
+      echo "[WARNING] Unable to parse Cobertura coverage report at ${xmlPath}"
+      return null
+    }
+
+    return coverage as Double
+  }
+}
+
 def Double getCoverageFromJacoco(String xmlPath) {
   if(!fileExists(xmlPath)) {
     echo "[WARNING] Jacoco coverage report not found at ${xmlPath}"
